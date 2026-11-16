@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Proyecto 7 - Servicios Telematicos</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 0; background: #f4f6f9; color: #222; }
+    header { background: #1f5a96; color: #fff; padding: 24px; }
+    main { max-width: 860px; margin: 24px auto; padding: 0 16px; }
+    table { width: 100%; border-collapse: collapse; background: #fff; }
+    th, td { padding: 10px; border-bottom: 1px solid #ddd; text-align: left; }
+    th { background: #e8eef6; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Servicios Telematicos</h1>
+    <p>Proyecto 7 - Monitoreo de infraestructura con Zabbix</p>
+  </header>
+  <main>
+    <p>Esta pagina la sirve el contenedor <strong>web</strong> (nginx). Zabbix la verifica
+       cada 30 segundos con un escenario web que busca el texto "Servicios Telematicos".</p>
+    <table>
+      <tr><th>Host</th><th>Servicio</th><th>IP Docker</th></tr>
+      <tr><td>web</td><td>nginx (HTTP 80)</td><td>172.30.0.11</td></tr>
+      <tr><td>db</td><td>MySQL 8 (3306)</td><td>172.30.0.12</td></tr>
+      <tr><td>dns</td><td>BIND9 (53)</td><td>172.30.0.13</td></tr>
+      <tr><td>ftp</td><td>vsftpd (21)</td><td>172.30.0.14</td></tr>
+    </table>
+  </main>
+</body>
+</html>

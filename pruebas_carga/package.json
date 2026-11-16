@@ -1,0 +1,21 @@
+{
+  "name": "pruebas-carga-st-p7",
+  "version": "1.0.0",
+  "description": "Pruebas de carga con Artillery - Proyecto 7 Zabbix",
+  "scripts": {
+    "humo:web": "artillery run web.yml -e humo --dotenv .env",
+    "humo:zabbix": "artillery run zabbix.yml -e humo --dotenv .env",
+    "carga:web": "artillery run web.yml -e carga --dotenv .env --record --tags proyecto:st-p7,servicio:web,tipo:carga",
+    "pico:web": "artillery run web.yml -e pico --dotenv .env --record --tags proyecto:st-p7,servicio:web,tipo:pico",
+    "carga:zabbix": "artillery run zabbix.yml -e carga --dotenv .env --record --tags proyecto:st-p7,servicio:zabbix,tipo:carga",
+    "capacidad:zabbix": "artillery run zabbix.yml -e capacidad --dotenv .env --record --tags proyecto:st-p7,servicio:zabbix,tipo:capacidad"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "devDependencies": {
+    "artillery": "^2.0.34"
+  },
+  "private": true
+}

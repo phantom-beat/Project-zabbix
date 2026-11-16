@@ -1,0 +1,20 @@
+$TTL 300
+@       IN  SOA dns.servicios.local. admin.servicios.local. (
+                2026111001 ; serial
+                3600       ; refresh
+                600        ; retry
+                86400      ; expire
+                300 )      ; minimum
+        IN  NS  dns.servicios.local.
+
+; Contenedores (red Docker st-servicios)
+proxy   IN  A   172.30.0.2
+web     IN  A   172.30.0.11
+db      IN  A   172.30.0.12
+dns     IN  A   172.30.0.13
+ftp     IN  A   172.30.0.14
+
+; Maquinas virtuales
+zabbix     IN  A   192.168.60.10
+servicios  IN  A   192.168.60.20
+www        IN  CNAME web

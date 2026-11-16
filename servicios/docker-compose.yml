@@ -1,0 +1,229 @@
+# =====================================================================
+# VM zbx-servicios (192.168.60.20) - Infraestructura monitoreada
+#
+#  4 hosts (web, db, dns, ftp). Cada uno tiene su Zabbix Agent 2 como
+#  "sidecar": comparte la red y los procesos (network_mode/pid) del
+#  contenedor del servicio, asi que para Zabbix el agente ES ese host.
+#  El Zabbix Proxy recoge los datos y los envia al servidor (VM 1).
+# =====================================================================
+name: st-servicios
+
+x-agente: &agente
+  image: zabbix/zabbix-agent2:${ZABBIX_TAG}
+  restart: unless-stopped
+
+x-agente-env: &agente-env
+  ZBX_SERVER_HOST: ${PROXY_IP}      # solo el proxy puede consultar al agente
+  ZBX_PASSIVE_ALLOW: "true"
+  ZBX_ACTIVE_ALLOW: "false"
+  ZBX_TIMEOUT: "10"
+  TZ: ${TZ}
+
+services:
+  # ------------------------------------------------------------ Zabbix Proxy
+  zabbix-proxy:
+    image: zabbix/zabbix-proxy-sqlite3:${ZABBIX_TAG}
+    container_name: st-zabbix-proxy
+    hostname: zabbix-proxy
+    restart: unless-stopped
+    environment:
+      ZBX_PROXYMODE: "0"                 # proxy activo: el se conecta al servidor
+      ZBX_HOSTNAME: ${ZBX_PROXY_NAME}
+      ZBX_SERVER_HOST: ${ZBX_SERVER_IP}
+      ZBX_SERVER_PORT: "10051"
+      ZBX_TIMEOUT: "10"
+      ZBX_UNREACHABLEPERIOD: "45"
+      ZBX_UNAVAILABLEDELAY: "30"
+      ZBX_UNREACHABLEDELAY: "15"
+      TZ: ${TZ}
+    cap_add: [NET_RAW]                   # necesario para los pings ICMP (fping)
+    volumes:
+      - proxy-data:/var/lib/zabbix/db_data
+    networks:
+      st-net:
+        ipv4_address: ${PROXY_IP}
+
+  # ------------------------------------------------------------ Host 1: WEB
+  web:
+    image: nginx:1.27-alpine
+    container_name: st-web
+    hostname: web
+    restart: unless-stopped
+    environment:
+      TZ: ${TZ}
+    volumes:
+      - ./web/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./web/html:/usr/share/nginx/html:ro
+    ports:
+      - "${WEB_PORT}:80"
+    networks:
+      st-net:
+        ipv4_address: ${WEB_IP}
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/ >/dev/null || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  agent-web:
+    <<: *agente
+    container_name: st-agent-web
+    network_mode: "service:web"
+    pid: "service:web"
+    environment:
+      <<: *agente-env
+      ZBX_HOSTNAME: web
+    volumes:
+      - ./zabbix-agent/web.conf:/etc/zabbix/zabbix_agent2.d/st.conf:ro
+    depends_on:
+      web:
+        condition: service_healthy
+
+  # ------------------------------------------------------------ Host 2: DB
+  db:
+    image: mysql:8.0
+    container_name: st-db
+    hostname: db
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_APP_USER: ${MYSQL_APP_USER}
+      MYSQL_APP_PASSWORD: ${MYSQL_APP_PASSWORD}
+      MYSQL_MONITOR_USER: ${MYSQL_MONITOR_USER}
+      MYSQL_MONITOR_PASSWORD: ${MYSQL_MONITOR_PASSWORD}
+      TZ: ${TZ}
+    command: ["--max-connections=100", "--performance-schema=ON"]
+    volumes:
+      - ./db/init:/docker-entrypoint-initdb.d:ro
+      - db-data:/var/lib/mysql
+    networks:
+      st-net:
+        ipv4_address: ${DB_IP}
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 40s
+
+  agent-db:
+    <<: *agente
+    container_name: st-agent-db
+    network_mode: "service:db"
+    pid: "service:db"
+    environment:
+      <<: *agente-env
+      ZBX_HOSTNAME: db
+    volumes:
+      - ./zabbix-agent/db.conf:/etc/zabbix/zabbix_agent2.d/st.conf:ro
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # ------------------------------------------------------------ Host 3: DNS
+  dns:
+    build: ./dns
+    image: st/bind9:1.0
+    pull_policy: build
+    container_name: st-dns
+    hostname: dns
+    restart: unless-stopped
+    environment:
+      TZ: ${TZ}
+    volumes:
+      - ./dns/named.conf:/etc/bind/named.conf:ro
+      - ./dns/zones:/etc/bind/zones:ro
+    ports:
+      # Se publica solo en la IP de la VM (en 127.0.0.53:53 esta systemd-resolved)
+      - "${VM_IP}:53:53/udp"
+      - "${VM_IP}:53:53/tcp"
+    networks:
+      st-net:
+        ipv4_address: ${DNS_IP}
+    healthcheck:
+      test: ["CMD-SHELL", "dig @127.0.0.1 web.servicios.local +short | grep -q ."]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  agent-dns:
+    <<: *agente
+    container_name: st-agent-dns
+    network_mode: "service:dns"
+    pid: "service:dns"
+    environment:
+      <<: *agente-env
+      ZBX_HOSTNAME: dns
+    volumes:
+      - ./zabbix-agent/dns.conf:/etc/zabbix/zabbix_agent2.d/st.conf:ro
+    depends_on:
+      dns:
+        condition: service_healthy
+
+  # ------------------------------------------------------------ Host 4: FTP
+  ftp:
+    build: ./ftp
+    image: st/vsftpd:1.0
+    pull_policy: build
+    container_name: st-ftp
+    hostname: ftp
+    restart: unless-stopped
+    environment:
+      FTP_USER: ${FTP_USER}
+      FTP_PASS: ${FTP_PASS}
+      PASV_ADDRESS: ${VM_IP}
+      TZ: ${TZ}
+    volumes:
+      - ./ftp/vsftpd.conf:/etc/vsftpd/vsftpd.conf:ro
+      - ftp-data:/home
+    ports:
+      - "21:21"
+      - "21100-21110:21100-21110"
+    networks:
+      st-net:
+        ipv4_address: ${FTP_IP}
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep vsftpd >/dev/null || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  agent-ftp:
+    <<: *agente
+    container_name: st-agent-ftp
+    network_mode: "service:ftp"
+    pid: "service:ftp"
+    environment:
+      <<: *agente-env
+      ZBX_HOSTNAME: ftp
+    volumes:
+      - ./zabbix-agent/ftp.conf:/etc/zabbix/zabbix_agent2.d/st.conf:ro
+    depends_on:
+      ftp:
+        condition: service_healthy
+
+  # ------------------------------------------------------------ Pruebas
+  # Contenedor con curl, dig, lftp y cliente mysql. Solo se levanta con:
+  #   docker compose run --rm toolbox /pruebas/probar_servicios.sh
+  toolbox:
+    build: ./toolbox
+    image: st/toolbox:1.0
+    pull_policy: build
+    profiles: ["pruebas"]
+    env_file: .env
+    volumes:
+      - ./pruebas:/pruebas:ro
+    networks: [st-net]
+
+networks:
+  st-net:
+    name: st-servicios
+    ipam:
+      config:
+        - subnet: ${SUBNET}
+
+volumes:
+  proxy-data:
+  db-data:
+  ftp-data:

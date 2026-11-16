@@ -1,0 +1,145 @@
+# =====================================================================
+# VM zbx-server (192.168.60.10) - Plataforma de monitoreo Zabbix 6.4
+# =====================================================================
+name: st-servidor
+
+services:
+  # Base de datos de Zabbix
+  postgres-server:
+    image: postgres:15-alpine
+    container_name: st-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      TZ: ${TZ}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks: [zbx-net]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # Zabbix Server - IMAGEN PERSONALIZADA (ver zabbix-server/Dockerfile)
+  zabbix-server:
+    build:
+      context: ./zabbix-server
+      args:
+        ZABBIX_TAG: ${ZABBIX_TAG}
+    image: st/zabbix-server-pgsql:6.4
+    container_name: st-zabbix-server
+    restart: unless-stopped
+    environment:
+      # Usadas por el entrypoint oficial para crear el esquema la primera vez
+      DB_SERVER_HOST: postgres-server
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      TZ: ${TZ}
+    volumes:
+      # Archivo de configuracion de Zabbix montado como volumen
+      - ./config/zabbix_server.conf:/etc/zabbix/custom/zabbix_server.conf:ro
+      - alertas:/var/log/st
+    ports:
+      - "${ZBX_SERVER_PORT}:10051"   # el proxy de la VM de servicios se conecta aqui
+    depends_on:
+      postgres-server:
+        condition: service_healthy
+    networks: [zbx-net]
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z 127.0.0.1 10051 || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 60s
+
+  # Frontend web (nginx + php-fpm)
+  zabbix-web:
+    image: zabbix/zabbix-web-nginx-pgsql:${ZABBIX_TAG}
+    container_name: st-zabbix-web
+    restart: unless-stopped
+    environment:
+      ZBX_SERVER_HOST: zabbix-server
+      ZBX_SERVER_NAME: "ST - Monitoreo de infraestructura"
+      DB_SERVER_HOST: postgres-server
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      PHP_TZ: ${TZ}
+      # PHP-FPM dimensionado para 4 vCPU / ~2 GB (ver pruebas de carga, README 6.5):
+      # ~4 procesos por vCPU; cada uno usa ~35 MB, 16 x 35 MB = ~560 MB como maximo
+      PHP_FPM_PM: dynamic
+      PHP_FPM_PM_MAX_CHILDREN: ${PHP_FPM_MAX_CHILDREN:-16}
+      PHP_FPM_PM_START_SERVERS: 8
+      PHP_FPM_PM_MIN_SPARE_SERVERS: 4
+      PHP_FPM_PM_MAX_SPARE_SERVERS: 12
+      PHP_FPM_PM_MAX_REQUESTS: 500
+    ports:
+      - "${ZBX_WEB_PORT}:8080"
+    depends_on:
+      postgres-server:
+        condition: service_healthy
+      zabbix-server:
+        condition: service_started
+    networks: [zbx-net]
+
+  # Agente para monitorear la propia VM / servidor Zabbix (host "Zabbix server")
+  zabbix-agent:
+    image: zabbix/zabbix-agent2:${ZABBIX_TAG}
+    container_name: st-zabbix-agent
+    hostname: zabbix-agent
+    restart: unless-stopped
+    environment:
+      ZBX_HOSTNAME: "Zabbix server"
+      ZBX_SERVER_HOST: zabbix-server
+      ZBX_ACTIVE_ALLOW: "false"
+      ZBX_TIMEOUT: "10"
+    volumes:
+      - ./config/zabbix_agent2_server.conf:/etc/zabbix/zabbix_agent2.d/st.conf:ro
+    networks: [zbx-net]
+
+  # Servidor SMTP de pruebas para las alertas por correo
+  mailhog:
+    image: mailhog/mailhog:v1.0.1
+    container_name: st-mailhog
+    restart: unless-stopped
+    ports:
+      - "${MAILHOG_SMTP_PORT}:1025"
+      - "${MAILHOG_WEB_PORT}:8025"
+    networks: [zbx-net]
+
+  # Contenedor de un solo uso: configura Zabbix por la API (hosts, grupos,
+  # templates, triggers, correo, acciones y dashboard). Termina al acabar.
+  zabbix-config:
+    image: python:3.12-alpine
+    container_name: st-zabbix-config
+    restart: "no"
+    environment:
+      ZBX_URL: http://zabbix-web:8080/api_jsonrpc.php
+      ZBX_USER: ${ZBX_API_USER}
+      ZBX_PASSWORD: ${ZBX_API_PASSWORD}
+      ZBX_PROXY_NAME: ${ZBX_PROXY_NAME}
+      MYSQL_MONITOR_USER: ${MYSQL_MONITOR_USER}
+      MYSQL_MONITOR_PASSWORD: ${MYSQL_MONITOR_PASSWORD}
+      PYTHONUNBUFFERED: "1"
+    volumes:
+      - ./scripts:/scripts:ro
+    command: ["python", "/scripts/configurar_zabbix.py"]
+    # ALERT_EMAIL y SMTP_REAL_* (secretos, fuera de git). Opcional.
+    env_file:
+      - path: .env.smtp
+        required: false
+    depends_on:
+      - zabbix-web
+    networks: [zbx-net]
+
+networks:
+  zbx-net:
+    name: st-zabbix-net
+
+volumes:
+  pgdata:
+  alertas:

@@ -1,0 +1,125 @@
+# Prueba de carga del frontend + API JSON-RPC de Zabbix (VM zbx-server)
+#
+# Simula operadores consultando Zabbix a la vez: abren el login del frontend y
+# consultan por API los hosts, los problemas activos y los ultimos datos.
+#
+# Uso (desde pruebas_carga/):
+#   npx artillery run zabbix.yml -e humo  --dotenv .env
+#   npx artillery run zabbix.yml -e carga     --dotenv .env --record   # uso realista (1-3 VU/s)
+#   npx artillery run zabbix.yml -e capacidad --dotenv .env --record   # busca el limite (1->12 VU/s)
+config:
+  target: "http://192.168.60.10:8080"
+  http:
+    timeout: 15
+  plugins:
+    expect: {}
+    metrics-by-endpoint:
+      useOnlyRequestNames: true
+    ensure: {}
+  defaults:
+    headers:
+      Content-Type: application/json-rpc
+  environments:
+    humo:
+      ensure:
+        thresholds:
+          - http.response_time.p95: 1500
+        maxErrorRate: 1
+      phases:
+        - name: humo
+          duration: 30
+          arrivalRate: 1
+    # Uso realista: pocos operadores que navegan y consultan con pausas.
+    carga:
+      ensure:
+        thresholds:
+          - http.response_time.p95: 1500
+        maxErrorRate: 1
+      phases:
+        - name: calentamiento
+          duration: 30
+          arrivalRate: 1
+        - name: rampa
+          duration: 60
+          arrivalRate: 1
+          rampTo: 3
+        - name: sostenida
+          duration: 120
+          arrivalRate: 3
+    # Prueba de estres: subida lenta para ENCONTRAR el punto de quiebre (se espera que
+    # se degrade). Sin umbrales de aprobacion: el resultado es la curva latencia vs carga.
+    capacidad:
+      phases:
+        - name: rampa-lenta
+          duration: 240
+          arrivalRate: 1
+          rampTo: 12
+
+# Un solo login antes de la prueba: todos los usuarios virtuales reutilizan el token
+before:
+  flow:
+    - post:
+        url: "/api_jsonrpc.php"
+        json:
+          jsonrpc: "2.0"
+          method: "user.login"
+          params:
+            username: "{{ $env.ZBX_USER }}"
+            password: "{{ $env.ZBX_PASSWORD }}"
+          id: 1
+        capture:
+          - json: "$.result"
+            as: "token"
+        expect:
+          - statusCode: 200
+          - hasProperty: result
+
+scenarios:
+  - name: "Operador consultando Zabbix"
+    flow:
+      - get:
+          url: "/index.php"
+          name: "GET frontend (login)"
+          expect:
+            - statusCode: 200
+      - think: 2
+      - post:
+          url: "/api_jsonrpc.php"
+          name: "API apiinfo.version"
+          json: { jsonrpc: "2.0", method: "apiinfo.version", params: {}, id: 1 }
+          expect:
+            - hasProperty: result
+      - post:
+          url: "/api_jsonrpc.php"
+          name: "API host.get"
+          json:
+            jsonrpc: "2.0"
+            method: "host.get"
+            params: { output: ["host", "name", "status"], selectInterfaces: ["ip", "available"] }
+            auth: "{{ token }}"
+            id: 2
+          expect:
+            - hasProperty: result
+      - think: 1
+      - post:
+          url: "/api_jsonrpc.php"
+          name: "API problem.get"
+          json:
+            jsonrpc: "2.0"
+            method: "problem.get"
+            params: { output: "extend", recent: true, sortfield: ["eventid"], sortorder: "DESC", limit: 20 }
+            auth: "{{ token }}"
+            id: 3
+          expect:
+            - hasProperty: result
+      - post:
+          url: "/api_jsonrpc.php"
+          name: "API item.get (CPU)"
+          json:
+            jsonrpc: "2.0"
+            method: "item.get"
+            params: { output: ["hostid", "name", "lastvalue"], search: { key_: "cpu.util.total" } }
+            auth: "{{ token }}"
+            id: 4
+          expect:
+            - hasProperty: result

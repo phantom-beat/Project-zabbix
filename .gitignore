@@ -1,0 +1,8 @@
+.vagrant/
+*.log
+__pycache__/
+pruebas_carga/node_modules/
+pruebas_carga/.env
+servidor/.env.smtp
+~$*
+*.tmp

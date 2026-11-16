@@ -1,0 +1,67 @@
+# Prueba de carga del host "web" (nginx en la VM zbx-servicios)
+#
+# Uso (desde pruebas_carga/):
+#   npx artillery run web.yml -e humo  --dotenv .env            # 30 s, comprobacion rapida
+#   npx artillery run web.yml -e carga --dotenv .env --record   # rampa + carga sostenida
+#   npx artillery run web.yml -e pico  --dotenv .env --record   # pico brusco (spike)
+#
+# Mientras corre, en Zabbix se ve el efecto: dashboard "ST - Monitoreo de infraestructura",
+# items web.page.perf / tiempo del escenario web "Pagina principal" y CPU del host web.
+config:
+  target: "http://192.168.60.20"
+  http:
+    timeout: 10
+  plugins:
+    expect: {}
+    metrics-by-endpoint:
+      useOnlyRequestNames: true
+    ensure: {}
+  ensure:
+    thresholds:
+      - http.response_time.p95: 500
+    maxErrorRate: 1
+  environments:
+    humo:
+      phases:
+        - name: humo
+          duration: 30
+          arrivalRate: 2
+    carga:
+      phases:
+        - name: calentamiento
+          duration: 30
+          arrivalRate: 5
+        - name: rampa
+          duration: 60
+          arrivalRate: 5
+          rampTo: 50
+        - name: sostenida
+          duration: 120
+          arrivalRate: 50
+    pico:
+      phases:
+        - name: base
+          duration: 30
+          arrivalRate: 5
+        - name: pico
+          duration: 30
+          arrivalRate: 200
+        - name: recuperacion
+          duration: 60
+          arrivalRate: 5
+
+scenarios:
+  - name: "Visitante de la pagina principal"
+    flow:
+      - get:
+          url: "/"
+          name: "GET / (index)"
+          expect:
+            - statusCode: 200
+            - contentType: text/html
+      - think: 1
+      - get:
+          url: "/salud"
+          name: "GET /salud"
+          expect:
+            - statusCode: 200
