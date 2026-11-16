@@ -334,5 +334,5 @@ data → web → escenario "Pagina principal"** para mostrar en la sustentación
 | Hosts con ZBX gris/rojo y proxy "never seen" | Revisar `docker compose logs zabbix-proxy` en zbx-servicios; desde esa VM `nc -zv 192.168.60.10 10051`. |
 | `zabbix-config` sale con error | `docker compose logs zabbix-config`; volver a ejecutar `docker compose run --rm zabbix-config`. |
 | No llegan correos | Administration → Media types → Email → *Test*; Reports → Action log. |
-| Agente caído tras reiniciar un servicio | Los sidecars dependen de la red del servicio: usar `pruebas/restaurar_host.sh <host>`. |
+| Agente caído tras reiniciar un servicio | Los sidecars dependen de la red del servicio. El timer `st-vigilar-agentes` (cada minuto, `pruebas/vigilar_agentes.sh`) los reengancha solo; a mano: `pruebas/restaurar_host.sh <host>`. Ver `journalctl -u st-vigilar-agentes`. |
 | El template MySQL marca error de conexión | Verificar usuario `zbx_monitor` (`servicios/db/init/01_usuarios.sh`); si el volumen ya existía, `docker compose down -v` y subir de nuevo. |

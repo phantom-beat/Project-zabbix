@@ -14,6 +14,21 @@ const F = "Times New Roman";
 const PT = n => n * 2; // half-points
 
 // ------------------------------------------------------------------ helpers
+function dimsImg(buf) { // PNG o JPEG -> [ancho, alto, tipo]
+  if (buf[0] === 0x89) return [buf.readUInt32BE(16), buf.readUInt32BE(20), "png"];
+  let i = 2;
+  while (i < buf.length) {
+    const m = buf[i + 1], len = buf.readUInt16BE(i + 2);
+    if (m >= 0xC0 && m <= 0xCF && m !== 0xC4 && m !== 0xC8 && m !== 0xCC) return [buf.readUInt16BE(i + 7), buf.readUInt16BE(i + 5), "jpg"];
+    i += 2 + len;
+  }
+  throw new Error("formato de imagen no soportado");
+}
+function rutaFig(archivo) { // acepta .png o .jpg con el mismo nombre
+  const base = path.join(FIG, archivo);
+  for (const r of [base, base.replace(/.png$/, ".jpg")]) if (fs.existsSync(r)) return r;
+  return null;
+}
 function runs(texto, base = {}) {
   // **negrita**, *cursiva*, `codigo`
   const out = [];
@@ -53,17 +68,15 @@ const bullet = texto => new Paragraph({
 });
 
 let nFig = 0, nTab = 0;
-function figura(archivo, anchoIn, pie) {
-  const ruta = path.join(FIG, archivo);
-  nFig++;
+function figura(archivo, anchoIn, pie, num) {
+  const ruta = rutaFig(archivo);
   const out = [];
-  if (fs.existsSync(ruta)) {
+  if (ruta) {
     const buf = fs.readFileSync(ruta);
-    // dimensiones PNG (bytes 16-23 del IHDR)
-    const w = buf.readUInt32BE(16), h = buf.readUInt32BE(20);
+    const [w, h, tipo] = dimsImg(buf);
     const ancho = anchoIn * 96, alto = ancho * h / w;
     out.push(new Paragraph({
-      children: [new ImageRun({ type: "png", data: buf, transformation: { width: ancho, height: alto } })],
+      children: [new ImageRun({ type: tipo, data: buf, transformation: { width: ancho, height: alto } })],
       alignment: AlignmentType.CENTER, spacing: { before: 80, after: 40 }, keepNext: true,
     }));
   } else {
@@ -73,7 +86,7 @@ function figura(archivo, anchoIn, pie) {
     }));
   }
   out.push(new Paragraph({
-    children: [new TextRun({ text: `Fig. ${nFig}. `, font: F, size: PT(8) }), ...runs(pie, { size: PT(8) })],
+    children: [new TextRun({ text: `Fig. ${num}. `, font: F, size: PT(8) }), ...runs(pie, { size: PT(8) })],
     alignment: AlignmentType.CENTER, spacing: { after: 120 },
   }));
   return out;
@@ -84,7 +97,7 @@ const sinBorde = { style: BorderStyle.NONE, size: 0, color: "FFFFFF" };
 function tabla(titulo, cabecera, filas, anchos) {
   nTab++;
   const total = anchos.reduce((a, b) => a + b, 0);
-  const celda = (t, cab, i) => new TableCell({
+  const celda = (t, cab, i, ultima) => new TableCell({
     width: { size: anchos[i], type: WidthType.DXA },
     verticalAlign: VerticalAlign.CENTER,
     shading: cab ? { type: ShadingType.CLEAR, color: "auto", fill: "E7E6E6" } : undefined,
@@ -92,7 +105,7 @@ function tabla(titulo, cabecera, filas, anchos) {
     borders: { top: borde, bottom: borde, left: sinBorde, right: sinBorde },
     children: [new Paragraph({
       children: runs(t, { size: PT(7.5), bold: cab }),
-      alignment: i === 0 ? AlignmentType.LEFT : AlignmentType.CENTER, spacing: { after: 0 },
+      alignment: i === 0 ? AlignmentType.LEFT : AlignmentType.CENTER, spacing: { after: 0 }, keepNext: !ultima, keepLines: true,
     })],
   });
   return [
@@ -107,7 +120,7 @@ function tabla(titulo, cabecera, filas, anchos) {
     new Table({
       width: { size: total, type: WidthType.DXA }, columnWidths: anchos, alignment: AlignmentType.CENTER,
       rows: [new TableRow({ tableHeader: true, children: cabecera.map((t, i) => celda(t, true, i)) }),
-        ...filas.map(f => new TableRow({ children: f.map((t, i) => celda(t, false, i)) }))],
+        ...filas.map((f, k) => new TableRow({ cantSplit: true, children: f.map((t, i) => celda(t, false, i, k === filas.length - 1)) }))],
     }),
     new Paragraph({ children: [], spacing: { after: 100 } }),
   ];
@@ -139,7 +152,7 @@ const resumen = [
   new Paragraph({
     children: [
       new TextRun({ text: "Resumen", font: F, size: PT(9), bold: true, italics: true }),
-      new TextRun({ text: "—Se diseñó e implementó una plataforma de monitoreo basada en Zabbix 6.4 que supervisa cuatro servicios de red (web, base de datos, DNS y FTP) desplegados en contenedores Docker. La solución se distribuye en dos máquinas virtuales aprovisionadas con Vagrant: una aloja el servidor Zabbix (imagen propia), PostgreSQL, el frontend y MailHog; la otra, los servicios con un Zabbix Agent 2 sidecar cada uno y un Zabbix Proxy que reporta al servidor por una única conexión saliente. Toda la configuración (templates, triggers, escenario web, alertas y dashboard) se crea automáticamente por la API JSON-RPC. Las pruebas muestran detección de caída de host en 40–49 s, de falla funcional del servicio web en 28 s, alertas por umbral de CPU y notificaciones de problema y recuperación por correo. Con Artillery se encontró que el frontend de Zabbix es el cuello de botella (saturación de CPU desde ~3 usuarios/s); con 4 vCPU y PHP-FPM ajustado la capacidad se duplicó (de ~15 a ~32 respuestas/s).", font: F, size: PT(9), bold: true }),
+      new TextRun({ text: "—Se diseñó e implementó una plataforma de monitoreo basada en Zabbix 6.4 que supervisa cuatro servicios de red (web, base de datos, DNS y FTP) desplegados en contenedores Docker. La solución se distribuye en dos máquinas virtuales aprovisionadas con Vagrant: una aloja el servidor Zabbix (imagen propia), PostgreSQL, el frontend y MailHog; la otra, los servicios con un Zabbix Agent 2 sidecar cada uno y un Zabbix Proxy que reporta al servidor por una única conexión saliente. Toda la configuración (templates, triggers, escenario web, alertas y dashboard) se crea automáticamente por la API JSON-RPC. Las pruebas muestran detección de caída de host en 40–51 s, de falla funcional del servicio web en 28 s, alertas por umbral de CPU y notificaciones de problema y recuperación por correo. Con Artillery se encontró que el frontend de Zabbix es el cuello de botella (saturación de CPU desde ~3 usuarios/s); con 4 vCPU y PHP-FPM ajustado la capacidad se duplicó (de ~15 a ~32 respuestas/s).", font: F, size: PT(9), bold: true }),
     ],
     alignment: AlignmentType.JUSTIFIED, spacing: { after: 80 },
   }),
@@ -197,13 +210,14 @@ const cuerpo3 = [
   P("**Configuración como código.** `configurar_zabbix.py` (solo librería estándar de Python) crea de forma idempotente grupos, el proxy, 5 templates con unos 30 ítems, unos 20 triggers y 2 gráficas, los 4 hosts (interfaz, macros, inventario y etiquetas), el escenario web, los medios de alerta, la acción y un dashboard de 4 páginas (Fig. 2). Un `vagrant up` deja la plataforma lista sin pasos manuales en el frontend."),
   P("**Servicios.** nginx con `default.conf` y el sitio montados; MySQL con scripts de inicialización que crean el usuario de la aplicación y `zbx_monitor`; BIND9 (imagen Alpine propia) autoritativo para `servicios.local` [6]; vsftpd (imagen Alpine propia) con usuario local, *chroot* y modo pasivo."),
   P("**Detección rápida.** Ítems cada 30 s, `nodata(agent.ping,1m)`, `max(icmpping,#2)=0`, y `UnreachablePeriod=45` y `UnavailableDelay=30` en el servidor y el proxy. Los secretos (cuenta SMTP real y clave de Artillery) se guardan en archivos excluidos del repositorio."),
+  P("**Vigilante de agentes.** Si un servicio se reinicia, Docker le crea un *namespace* de red nuevo y su agente *sidecar* queda pegado al anterior. Un *timer* de systemd ejecuta cada minuto `vigilar_agentes.sh`, que compara el contenedor al que apunta cada agente con el actual de su servicio y lo recrea si difieren."),
 ];
 
 const filasPruebas = [
   ["P1 Dashboard en tiempo real", "`estresar_cpu.sh web 150`", "Curva de CPU sube; «Uso de CPU alto» en ~1,8 min (Fig. 2)"],
-  ["P2 Caída de host", "`simular_caida.sh ftp`", "Agente sin respuesta (Alta) a los 40 s; sin ping (Desastre) a los 49 s; ftp en rojo (Fig. 3)"],
+  ["P2 Caída de host", "`simular_caida.sh ftp`", "3 repeticiones: agente sin respuesta (Alta) en 40–42 s; sin ping (Desastre) en 49–51 s (Fig. 4)"],
   ["P3 Falla funcional del servicio", "Se cambia el contenido de `index.html`", "«Escenario web fallando» (Alta) a los 28 s"],
-  ["P4 Alertas por correo", "MailHog :8025 tras P1–P3", "Correos «Problem» y «Resolved» (Fig. 4); en P2, aviso a los 44 s y correo «Resuelto» al restaurar el host"],
+  ["P4 Alertas por correo", "MailHog :8025 tras P1–P3", "Correos «Problem» y «Resolved» (Fig. 3); en P2, aviso a los 44 s y correo «Resuelto» al restaurar el host"],
   ["P5 Métricas históricas", "Graphs de cada host, 1 h", "Series de CPU con los picos de P1 y de las pruebas de carga"],
   ["P6 Servicios funcionales", "`probar_servicios.sh` en toolbox", "HTTP 200, DNS resuelve, consulta SQL, listado FTP y ping: 9/9 OK"],
 ];
@@ -212,6 +226,7 @@ const cuerpo4 = [
   H1("Pruebas"),
   P("Se ejecutaron las pruebas mínimas del enunciado más una prueba funcional y pruebas de carga. Los tiempos se midieron entre la acción y el evento registrado por Zabbix (Tabla II)."),
   ...tabla("Pruebas funcionales y de detección", ["Prueba", "Procedimiento", "Resultado obtenido"], filasPruebas, [1350, 1500, 2017]),
+  ...figura("fig4_mailhog.png", 3.38, "Correos de problema y recuperación recibidos en MailHog (destinatario omitido).", 3),
   P("**Pruebas de carga.** Con Artillery 2 [7] se generó tráfico desde el anfitrión y los resultados se grabaron en Artillery Cloud. Hay dos escenarios: `web.yml` (GET `/` y `/salud` en nginx) y `zabbix.yml` (login del frontend y consultas `host.get`, `problem.get` e `item.get` a la API con un único token). Los umbrales de aprobación son p95 < 500 ms (web) o < 1,5 s (Zabbix) y una tasa de errores menor al 1 % (Tabla III)."),
   ...tabla("Resultados de las pruebas de carga", ["Prueba", "VU", "Errores", "p95", "Máx. req/s", "OK"], [
     ["Web: rampa 5→50 VU/s, 120 s a 50", "7 800", "0", "2 ms", "100", "✔"],
@@ -224,7 +239,8 @@ const cuerpo4 = [
 
 const cuerpo5 = [
   H1("Discusión de las pruebas"),
-  P("**Tiempo de detección.** La caída de host se detectó en 40–49 s, dentro de lo esperado por el diseño: ítems cada 30 s, `nodata` de 1 min y dos pings fallidos consecutivos. La falla funcional se detectó en 28 s porque el escenario web corre cada 30 s y basta un fallo. Reducir los intervalos acelera la detección, pero aumenta la carga y el volumen de la base de datos."),
+  P("**Tiempo de detección.** La caída de host se detectó en 40–51 s, dentro de lo esperado por el diseño: ítems cada 30 s, `nodata` de 1 min y dos pings fallidos consecutivos. La falla funcional se detectó en 28 s porque el escenario web corre cada 30 s y basta un fallo. Reducir los intervalos acelera la detección, pero aumenta la carga y el volumen de la base de datos."),
+  P("**Robustez del sidecar.** Tras reiniciar las VM, el contenedor ftp se reinició solo y su agente quedó desconectado durante 2 h: Zabbix mostraba «Agente sin respuesta» aunque el servicio funcionaba (sí respondía al ping). Es una debilidad del patrón `network_mode: service:X`, que se resolvió con el vigilante descrito en la sección V: al forzar un reinicio del servicio, el agente se reengancha en menos de 1 min."),
   P("**Correlación de síntomas.** Una caída de host dispara varios triggers (agente, ICMP y servicio) y, por tanto, varios correos. En producción se configurarían dependencias entre triggers para notificar solo la causa raíz."),
   P("**Métricas de contenedor.** Los cuatro contenedores comparten el kernel de la VM y el agente lee su `/proc`. Por eso la prueba de estrés en `web` elevó la CPU de los cuatro hosts y disparó el trigger en todos (en menos de 15 s entre ellos). Para métricas por contenedor se puede usar el plugin Docker del Agent 2 o cAdvisor."),
   P("**Capacidad.** nginx sirvió 411 req/s sin errores; solo creció la cola (p99 de 7 a 111 ms). El frontend y la API de Zabbix resultaron ser el cuello de botella: con 2 vCPU el p95 pasó de 150 ms a 1 s con ~3,6 VU/s y luego hubo *timeouts* masivos, con la CPU de zbx-server al 100 % según el propio Zabbix. Cada petición ejecuta PHP-FPM y consultas a PostgreSQL. Al pasar a 4 vCPU y limitar PHP-FPM a 16 procesos (para no agotar la RAM), la carga estable subió a ~6 VU/s y el rendimiento máximo de ~15 a ~32 respuestas/s (Fig. 5): duplicar la CPU duplicó la capacidad, lo que confirma que el límite es la CPU. Esta capacidad sobra para el uso real (unos pocos operadores), que pasó todos los umbrales con un p95 de 136 ms. El trigger de CPU de la plantilla oficial (5 min > 90 %) no se disparó porque la saturación duró ~4 min; conviene un trigger más sensible para el servidor de monitoreo."),
@@ -259,14 +275,12 @@ const pie = new Footer({ children: [new Paragraph({ alignment: AlignmentType.CEN
 const secciones = [
   { properties: { page: pagina }, footers: { default: pie }, children: [...titulo] },
   { properties: { type: SectionType.CONTINUOUS, page: pagina, column: dosCol }, children: [...resumen, ...cuerpo1] },
-  { properties: { type: SectionType.CONTINUOUS, page: pagina }, children: figura("fig1_arquitectura.png", ANCHO_TOTAL_IN, "Arquitectura: dos VM con Docker Compose; los agentes *sidecar* reportan al Zabbix Proxy, que envía los datos al servidor por TCP 10051.") },
-  { properties: { type: SectionType.CONTINUOUS, page: pagina, column: dosCol }, children: [...cuerpo2, ...cuerpo3,
-    ...figura("fig2_dashboard.png", ANCHO_COL_IN, "Dashboard «ST - Monitoreo de infraestructura» (página de CPU, memoria y disco)."),
-    ...cuerpo4,
-    ...figura("fig3_problemas.png", ANCHO_COL_IN, "Monitoring → Problems durante la caída simulada del host ftp."),
-    ...figura("fig4_mailhog.png", ANCHO_COL_IN, "Correos de problema y recuperación recibidos en MailHog."),
-  ] },
-  { properties: { type: SectionType.CONTINUOUS, page: pagina }, children: figura("fig5_artillery_zabbix.png", ANCHO_TOTAL_IN, "Carga sobre el frontend/API de Zabbix antes y después de la optimización: (a) latencia p95; (b) respuestas correctas por segundo.") },
+  { properties: { type: SectionType.CONTINUOUS, page: pagina }, children: figura("fig1_arquitectura.png", ANCHO_TOTAL_IN, "Arquitectura: dos VM con Docker Compose; los agentes *sidecar* reportan al Zabbix Proxy, que envía los datos al servidor por TCP 10051.", 1) },
+  { properties: { type: SectionType.CONTINUOUS, page: pagina, column: dosCol }, children: [...cuerpo2, ...cuerpo3] },
+  { properties: { type: SectionType.CONTINUOUS, page: pagina }, children: figura("fig2_dashboard.png", 6.2, "Dashboard «ST - Monitoreo de infraestructura», página CPU / Memoria / Disco (últimas 3 h). Los huecos iniciales corresponden a las VM apagadas.", 2) },
+  { properties: { type: SectionType.CONTINUOUS, page: pagina, column: dosCol }, children: cuerpo4 },
+  { properties: { type: SectionType.CONTINUOUS, page: pagina }, children: figura("fig3_problemas.png", ANCHO_TOTAL_IN, "Monitoring → Problems durante la caída simulada de ftp (12:24:14): agente sin respuesta a los 42 s y sin ping (Desastre) a los 51 s; debajo, la repetición anterior ya resuelta.", 4) },
+  { properties: { type: SectionType.CONTINUOUS, page: pagina }, children: figura("fig5_artillery_zabbix.png", ANCHO_TOTAL_IN, "Carga sobre el frontend/API de Zabbix antes y después de la optimización: (a) latencia p95; (b) respuestas correctas por segundo.", 5) },
   { properties: { type: SectionType.CONTINUOUS, page: pagina, column: dosCol }, children: cuerpo5 },
 ];
 

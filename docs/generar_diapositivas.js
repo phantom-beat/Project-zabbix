@@ -28,6 +28,21 @@ pres.defineSlideMaster({
   slideNumber: { x: 12.3, y: 7.0, w: 0.5, h: 0.3, fontFace: BODY, fontSize: 10, color: K.gris },
 });
 
+function dimsImg(buf) { // PNG o JPEG -> [ancho, alto, tipo]
+  if (buf[0] === 0x89) return [buf.readUInt32BE(16), buf.readUInt32BE(20), "png"];
+  let i = 2;
+  while (i < buf.length) {
+    const m = buf[i + 1], len = buf.readUInt16BE(i + 2);
+    if (m >= 0xC0 && m <= 0xCF && m !== 0xC4 && m !== 0xC8 && m !== 0xCC) return [buf.readUInt16BE(i + 7), buf.readUInt16BE(i + 5), "jpg"];
+    i += 2 + len;
+  }
+  throw new Error("formato de imagen no soportado");
+}
+function rutaFig(archivo) { // acepta .png o .jpg con el mismo nombre
+  const base = path.join(FIG, archivo);
+  for (const r of [base, base.replace(/.png$/, ".jpg")]) if (fs.existsSync(r)) return r;
+  return null;
+}
 const titulo = (s, t, sub) => {
   s.addText(t, { x: 0.6, y: 0.35, w: 12.1, h: 0.75, fontFace: HEAD, fontSize: 32, bold: true, color: K.noche, margin: 0, isTextBox: true });
   if (sub) s.addText(sub, { x: 0.6, y: 1.1, w: 12.1, h: 0.4, fontFace: BODY, fontSize: 16, italic: true, color: K.gris, margin: 0, isTextBox: true });
@@ -40,13 +55,13 @@ const tarjeta = (s, x, y, w, h, cab, cuerpo, color = K.verde, fondo = K.claro) =
   s.addText(cuerpo, { x: x + 0.25, y: y + 0.7, w: w - 0.5, h: h - 0.85, fontFace: BODY, fontSize: 14, color: K.tinta, margin: 0, valign: "top", isTextBox: true, paraSpaceAfter: 4 });
 };
 const img = (s, archivo, x, y, w, hMax) => {
-  const ruta = path.join(FIG, archivo);
-  if (!fs.existsSync(ruta)) {
+  const ruta = rutaFig(archivo);
+  if (!ruta) {
     s.addShape(pres.shapes.RECTANGLE, { x, y, w, h: hMax, fill: { color: K.claro }, line: { color: K.gris, dashType: "dash" } });
     s.addText(`[captura pendiente: ${archivo}]`, { x, y, w, h: hMax, align: "center", fontSize: 14, color: K.gris, isTextBox: true });
     return;
   }
-  const b = fs.readFileSync(ruta), iw = b.readUInt32BE(16), ih = b.readUInt32BE(20);
+  const [iw, ih] = dimsImg(fs.readFileSync(ruta));
   let ww = w, hh = w * ih / iw;
   if (hh > hMax) { hh = hMax; ww = hMax * iw / ih; }
   s.addImage({ path: ruta, x: x + (w - ww) / 2, y, w: ww, h: hh });
@@ -174,10 +189,10 @@ s.addNotes("Demo en vivo: estresar_cpu.sh web 150 y ver subir la curva.");
 s = pres.addSlide({ masterName: "CONTENIDO" });
 titulo(s, "Resultados de las pruebas", "Tiempo desde la acción hasta el evento en Zabbix");
 const stat = (x, num, lab, color) => {
-  s.addText(num, { x, y: 1.75, w: 2.9, h: 1.1, fontFace: HEAD, fontSize: 54, bold: true, color, margin: 0, isTextBox: true });
-  s.addText(lab, { x, y: 2.85, w: 2.9, h: 0.75, fontFace: BODY, fontSize: 14, color: K.tinta, margin: 0, isTextBox: true });
+  s.addText(num, { x, y: 1.75, w: 2.9, h: 1.1, fontFace: HEAD, fontSize: 44, bold: true, color, margin: 0, isTextBox: true });
+  s.addText(lab, { x, y: 2.85, w: 2.8, h: 0.75, fontFace: BODY, fontSize: 14, color: K.tinta, margin: 0, valign: "top", isTextBox: true });
 };
-stat(0.6, "40 s", "Caída de host: agente sin respuesta (49 s sin ping)", K.rojo);
+stat(0.6, "40–42 s", "Caída de host: agente sin respuesta (49–51 s sin ping)", K.rojo);
 stat(3.7, "28 s", "Falla funcional: escenario web fallando", "E8743B");
 stat(6.8, "44 s", "Correo de alerta en MailHog y Gmail", K.azul);
 stat(9.9, "9/9", "Pruebas funcionales de servicios OK", K.verde);

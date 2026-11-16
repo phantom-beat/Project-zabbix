@@ -34,6 +34,31 @@ if [ "${ROL}" = "servidor" ]; then
   echo " MailHog    : http://192.168.60.10:8025"
   echo "=============================================================="
 else
+  # Vigilante de agentes sidecar: cada minuto reengancha un agente si su servicio se reinicio
+  cat > /etc/systemd/system/st-vigilar-agentes.service <<EOF
+[Unit]
+Description=Reengancha los agentes Zabbix sidecar a su servicio (Proyecto 7)
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=${DST}/pruebas/vigilar_agentes.sh
+EOF
+  cat > /etc/systemd/system/st-vigilar-agentes.timer <<EOF
+[Unit]
+Description=Ejecuta st-vigilar-agentes cada minuto
+
+[Timer]
+OnBootSec=90
+OnUnitActiveSec=60
+
+[Install]
+WantedBy=timers.target
+EOF
+  systemctl daemon-reload
+  systemctl enable --now st-vigilar-agentes.timer
+
   echo "=============================================================="
   echo " Web  : http://192.168.60.20"
   echo " DNS  : nslookup web.servicios.local 192.168.60.20"
