@@ -154,7 +154,7 @@ proyecto_servicios_telematicos/
 │   └── pruebas/                     # scripts de las pruebas mínimas
 ├── pruebas_carga/                   # Artillery: web.yml, zabbix.yml, reportes/ (JSON de cada prueba)
 ├── docs/                            # informe IEEE y diapositivas (+ scripts que los generan, figuras/)
-├── INFORME.md                       # borrador del informe en Markdown
+├── INFORME.md                       # enlace al informe final (docs/)
 └── GUIA_PRESENTACION.md             # guion de diapositivas y demo (20 min)
 ```
 
