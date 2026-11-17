@@ -143,7 +143,7 @@ const titulo = [
     alignment: AlignmentType.CENTER, spacing: { after: 0 },
   }),
   new Paragraph({
-    children: [new TextRun({ text: "jose.aguirre@uao.edu.co", font: F, size: PT(9) })],
+    children: [new TextRun({ text: "jose.aguirre@uao.edu.co · gabriel.gil@uao.edu.co", font: F, size: PT(9) })],
     alignment: AlignmentType.CENTER, spacing: { after: 240 },
   }),
 ];
