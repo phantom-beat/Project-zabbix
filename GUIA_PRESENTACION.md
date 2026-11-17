@@ -16,7 +16,8 @@ vagrant up                    # si ya estaban creadas, solo arranca
 |---|---|---|---|
 | 1 | Portada | Proyecto 7, integrantes | 0:30 |
 | 2 | Problema | Por qué monitorear; requisitos del enunciado | 1:00 |
-| 3 | Alternativas | Tabla Zabbix vs Prometheus vs Nagios (matriz ponderada) + decisión sidecar/proxy | 1:30 |
+| 3 | Proceso de selección | Filtro de restricciones, criterios medibles, matriz de la herramienta (4,55 / 3,50 / 2,80) | 1:00 |
+| 3b | Conectividad entre VMs | Matriz A1/A2/A3 (proxy 4,80), sensibilidad y reflexión | 1:00 |
 | 4 | Arquitectura | Diagrama de 2 VMs, redes, puertos, flujo agente → proxy → servidor → MailHog | 1:30 |
 | 5 | Docker | Compose de cada VM, imagen Zabbix personalizada, volúmenes de configuración | 1:00 |
 | 6 | Configuración Zabbix | Grupos, 5 templates, triggers y severidades, escenario web (configurado por API) | 1:30 |

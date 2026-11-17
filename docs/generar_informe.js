@@ -94,7 +94,7 @@ function figura(archivo, anchoIn, pie, num) {
 
 const borde = { style: BorderStyle.SINGLE, size: 4, color: "000000" };
 const sinBorde = { style: BorderStyle.NONE, size: 0, color: "FFFFFF" };
-function tabla(titulo, cabecera, filas, anchos) {
+function tabla(titulo, cabecera, filas, anchos, colsIzq = 1) {
   nTab++;
   const total = anchos.reduce((a, b) => a + b, 0);
   const celda = (t, cab, i, ultima) => new TableCell({
@@ -105,7 +105,7 @@ function tabla(titulo, cabecera, filas, anchos) {
     borders: { top: borde, bottom: borde, left: sinBorde, right: sinBorde },
     children: [new Paragraph({
       children: runs(t, { size: PT(7.5), bold: cab }),
-      alignment: i === 0 ? AlignmentType.LEFT : AlignmentType.CENTER, spacing: { after: 0 }, keepNext: !ultima, keepLines: true,
+      alignment: i < colsIzq ? AlignmentType.LEFT : AlignmentType.CENTER, spacing: { after: 0 }, keepNext: !ultima, keepLines: true,
     })],
   });
   return [
@@ -176,23 +176,34 @@ const cuerpo1 = [
   P("Se decidió además que el servidor de monitoreo no comparta máquina con los servicios que vigila, como ocurre en un escenario real: si la máquina de servicios falla, el monitor debe seguir operativo para detectarlo y notificarlo."),
 
   H1("Alternativas de solución"),
+  H2("Proceso de selección"),
+  P("Cada decisión abierta se resolvió en cuatro pasos: (1) las **restricciones** del enunciado actúan como filtro eliminatorio, no como criterio puntuable, para no inflar artificialmente a la alternativa exigida; (2) se definen criterios ligados a las necesidades del Contexto, cada uno con su **forma de medición** y una escala 1–5 con anclas explícitas (los valores intermedios 2 y 4 interpolan); (3) se puntúa con evidencia de la documentación oficial [1], [8]–[10] y de la implementación; (4) se analiza la **sensibilidad** del resultado a los pesos."),
   H2("Herramienta de monitoreo"),
-  P("Se compararon Zabbix 6.4, Prometheus + Grafana y Nagios Core con una matriz ponderada (Tabla I, escala 1–5)."),
-  ...tabla("Matriz de decisión de la herramienta", ["Criterio (peso)", "Zabbix", "Prom.+Graf.", "Nagios"], [
-    ["Exigida por el enunciado (30 %)", "5", "1", "1"],
-    ["Agente con métricas de SO y servicios (20 %)", "5", "4", "3"],
-    ["Alertas por correo integradas (15 %)", "5", "4", "4"],
-    ["Dashboards e históricos (15 %)", "4", "5", "2"],
-    ["Configuración por API (10 %)", "5", "4", "2"],
-    ["Monitoreo distribuido / proxy (10 %)", "5", "3", "2"],
-    ["**Total ponderado**", "**4,85**", "3,05", "2,15"],
-  ], [2467, 800, 800, 800]),
-  H2("Ubicación del agente en cada host"),
-  P("(1) Instalar el agente dentro de cada imagen de servicio; (2) agente como contenedor *sidecar* que comparte red y espacio de procesos con el servicio; (3) un único agente por VM. La opción 1 obliga a reconstruir las imágenes oficiales y a ejecutar dos procesos por contenedor; la 3 no distingue los hosts. Se eligió la **2**: con `network_mode: service:X` y `pid: service:X` el agente ve los puertos y procesos del servicio como si estuviera instalado en él, y cada host conserva su IP e identidad en Zabbix."),
+  P("El enunciado fija Zabbix, así que la Tabla I no decide por sí sola: verifica si Zabbix sería también la mejor opción técnica frente a Prometheus + Grafana y Nagios Core, puntuadas con los mismos criterios."),
+  ...tabla("Criterios, forma de medición y puntaje de la herramienta", ["Criterio (peso)", "Cómo se mide (1 / 3 / 5)", "Zab.", "P+G", "Nag."], [
+    ["C1 Componentes a desplegar (25 %)", "Nº de piezas para cubrir los 6 requisitos (disponibilidad, servicios, CPU/RAM/disco, triggers, dashboards, correo): ≤3 → 5; 5 → 3; ≥7 → 1", "4", "2", "4"],
+    ["C2 Dashboards e históricos (20 %)", "5 = dashboards editables + historia y tendencias nativas; 3 = gráficas básicas; 1 = sin histórico gráfico", "4", "5", "1"],
+    ["C3 Monitoreo distribuido (20 %)", "5 = recolector nativo en la red remota, conexión saliente y *buffer*; 3 = federación o configuración extra; 1 = solo sondeo directo", "5", "3", "2"],
+    ["C4 Configuración automatizable (20 %)", "5 = API para hosts, plantillas, alertas y dashboards; 3 = archivos versionables sin API de escritura; 1 = solo GUI", "5", "4", "3"],
+    ["C5 Alertas por correo (15 %)", "5 = problema y recuperación con plantillas y escalamiento nativos; 3 = aviso básico; 1 = componente externo", "5", "4", "4"],
+    ["**Total ponderado**", "", "**4,55**", "3,50", "2,80"],
+  ], [1150, 2367, 450, 450, 450], 2),
+  P("Evidencia de C1: Zabbix requiere servidor, frontend, base de datos y agente (4 piezas); Prometheus + Grafana, Prometheus, Grafana, Alertmanager y los *exporters* node, blackbox y mysqld (6); Nagios, núcleo con CGI, *plugins*, NRPE y PNP4Nagios para gráficas (4), aunque sin dashboards (C2 = 1)."),
   H2("Conectividad entre máquinas virtuales"),
-  P("(1) Publicar el puerto 10050 de cada agente en la VM de servicios; (2) red *overlay* con Docker Swarm; (3) **Zabbix Proxy** en la VM de servicios. La opción 1 impide los chequeos ICMP y HTTP hacia las IP internas; la 2 añade complejidad fuera del alcance. El proxy es el mecanismo nativo de Zabbix para monitoreo distribuido: vive en la red de los servicios, ejecuta los chequeos localmente y envía los datos al servidor por una sola conexión saliente (modo activo, TCP 10051) [1]."),
-  H2("Base de datos de Zabbix"),
-  P("PostgreSQL 15 y MySQL 8 están soportados. Se eligió PostgreSQL para el servidor y se reservó MySQL como *servicio monitoreado*, evitando confundir ambos roles."),
+  P("Era la decisión de diseño realmente abierta: el servidor no ve la red Docker interna de la VM de servicios. Alternativas: A1, publicar en la IP de la VM el puerto 10050 de cada agente y los puertos de servicio; A2, red *overlay* con Docker Swarm; A3, Zabbix Proxy activo dentro de la red de servicios (Tabla II)."),
+  ...tabla("Criterios, forma de medición y puntaje de la conectividad", ["Criterio (peso)", "Cómo se mide (1 / 3 / 5)", "A1", "A2", "A3"], [
+    ["K1 Cobertura de chequeos (35 %)", "Tipos de chequeo exigidos (agente, ICMP, TCP, escenario HTTP) ejecutables contra la IP de cada host: 4 → 5; 2 → 3; 0 → 1", "4", "5", "5"],
+    ["K2 Superficie expuesta (25 %)", "Puertos abiertos entre VM: 1 → 5; 2–4 → 3; ≥5 → 1", "1", "3", "5"],
+    ["K3 Complejidad (20 %)", "Componentes nuevos a operar: 0 → 5; 2 → 3; ≥4 → 1", "5", "2", "4"],
+    ["K4 Tolerancia a cortes (20 %)", "5 = guarda los datos y los reenvía al volver el enlace; 1 = se pierden durante el corte", "1", "1", "5"],
+    ["**Total ponderado**", "", "2,85", "3,10", "**4,80**"],
+  ], [1150, 2367, 450, 450, 450], 2),
+  P("A1 hace ping a la VM y no al contenedor (3 de 4 chequeos) y abre 8 puertos; A2 exige `swarm init/join`, una red *overlay* y desplegar como *stack* (3 componentes, 4 puertos: 2377, 7946 TCP/UDP y 4789); A3 añade solo el contenedor del proxy, usa una conexión saliente (TCP 10051) y conserva los datos si el enlace cae [1]."),
+  H2("Ubicación del agente y base de datos"),
+  P("Para el agente se exigió: identidad e IP propias por host, no modificar las imágenes oficiales y un proceso por contenedor. Instalarlo dentro de cada imagen viola las dos últimas y un agente por VM viola la primera; solo el agente **sidecar** (`network_mode` y `pid: service:X`) cumple las tres. Para la base de datos, PostgreSQL y MySQL están soportados; se eligió PostgreSQL y se reservó MySQL como *servicio monitoreado* para no mezclar roles."),
+  H2("Reflexión sobre la selección"),
+  P("Tratar la restricción del enunciado como filtro permitió comprobar que Zabbix es también la mejor opción técnica (4,55 frente a 3,50), en lugar de forzar el resultado. El orden es estable: con pesos iguales queda 4,60 / 3,60 / 2,80, y Prometheus + Grafana solo ganaría si los dashboards pesaran más del 61 %, lo que no refleja la necesidad principal (detectar y avisar). En conectividad, el proxy sigue ganando aunque la simplicidad pese el 50 % (4,50 frente a 3,66 de A1)."),
+  P("La matriz no anticipó un riesgo del sidecar: al reiniciarse un servicio el agente pierde la red (Sec. VII). En una próxima evaluación se añadiría un criterio de **comportamiento ante reinicios**, medible forzando el reinicio de cada servicio y observando si el monitoreo se recupera solo."),
 ];
 
 const cuerpo2 = [
@@ -224,10 +235,10 @@ const filasPruebas = [
 
 const cuerpo4 = [
   H1("Pruebas"),
-  P("Se ejecutaron las pruebas mínimas del enunciado más una prueba funcional y pruebas de carga. Los tiempos se midieron entre la acción y el evento registrado por Zabbix (Tabla II)."),
+  P("Se ejecutaron las pruebas mínimas del enunciado más una prueba funcional y pruebas de carga. Los tiempos se midieron entre la acción y el evento registrado por Zabbix (Tabla III)."),
   ...tabla("Pruebas funcionales y de detección", ["Prueba", "Procedimiento", "Resultado obtenido"], filasPruebas, [1350, 1500, 2017]),
   ...figura("fig4_mailhog.png", 3.38, "Correos de problema y recuperación recibidos en MailHog (destinatario omitido).", 3),
-  P("**Pruebas de carga.** Con Artillery 2 [7] se generó tráfico desde el anfitrión y los resultados se grabaron en Artillery Cloud. Hay dos escenarios: `web.yml` (GET `/` y `/salud` en nginx) y `zabbix.yml` (login del frontend y consultas `host.get`, `problem.get` e `item.get` a la API con un único token). Los umbrales de aprobación son p95 < 500 ms (web) o < 1,5 s (Zabbix) y una tasa de errores menor al 1 % (Tabla III)."),
+  P("**Pruebas de carga.** Con Artillery 2 [7] se generó tráfico desde el anfitrión y los resultados se grabaron en Artillery Cloud. Hay dos escenarios: `web.yml` (GET `/` y `/salud` en nginx) y `zabbix.yml` (login del frontend y consultas `host.get`, `problem.get` e `item.get` a la API con un único token). Los umbrales de aprobación son p95 < 500 ms (web) o < 1,5 s (Zabbix) y una tasa de errores menor al 1 % (Tabla IV)."),
   ...tabla("Resultados de las pruebas de carga", ["Prueba", "VU", "Errores", "p95", "Máx. req/s", "OK"], [
     ["Web: rampa 5→50 VU/s, 120 s a 50", "7 800", "0", "2 ms", "100", "✔"],
     ["Web: pico de 200 VU/s durante 30 s", "6 450", "0", "10 ms", "411", "✔"],
@@ -262,6 +273,9 @@ const cuerpo5 = [
     "[5] MailHog, «Web and API based SMTP testing», GitHub. [En línea]. Disponible: https://github.com/mailhog/MailHog",
     "[6] ISC, «BIND 9 Administrator Reference Manual». [En línea]. Disponible: https://bind9.readthedocs.io/",
     "[7] Artillery Software, «Artillery documentation». [En línea]. Disponible: https://www.artillery.io/docs",
+    "[8] Prometheus Authors, «Prometheus documentation». [En línea]. Disponible: https://prometheus.io/docs/",
+    "[9] Grafana Labs, «Grafana documentation». [En línea]. Disponible: https://grafana.com/docs/grafana/",
+    "[10] Nagios Enterprises, «Nagios Core documentation». [En línea]. Disponible: https://www.nagios.org/documentation/",
   ].map(r => new Paragraph({ children: [new TextRun({ text: r, font: F, size: PT(8) })], spacing: { after: 40 }, indent: { left: 300, hanging: 300 } })),
 ];
 

@@ -1,6 +1,6 @@
 # Informe — Proyecto 7: Monitoreo de infraestructura con Zabbix
 
-El informe final en formato IEEE (5 páginas) está en:
+El informe final en formato IEEE (6 páginas) está en:
 
 - **PDF:** [`docs/Informe_IEEE_Proyecto7.pdf`](docs/Informe_IEEE_Proyecto7.pdf)
 - **Word (editable):** [`docs/Informe_IEEE_Proyecto7.docx`](docs/Informe_IEEE_Proyecto7.docx)

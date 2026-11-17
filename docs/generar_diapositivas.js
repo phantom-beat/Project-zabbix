@@ -91,21 +91,45 @@ s.addNotes("Pruebas mínimas pedidas: dashboard en tiempo real, caída de host, 
 
 // 3 Alternativas --------------------------------------------------------------
 s = pres.addSlide({ masterName: "CONTENIDO" });
-titulo(s, "Alternativas evaluadas", "Matriz ponderada (1–5) y decisiones de diseño");
+titulo(s, "Cómo elegimos: proceso de selección", "Restricciones como filtro · criterios medibles · matriz ponderada · sensibilidad");
+const izq = filas => filas.map((f, i) => i === 0 ? f : f.map((c, j) => j === 0 ? (typeof c === "string" ? { text: c, options: { align: "left" } } : { ...c, options: { ...c.options, align: "left" } }) : c));
 const cab = t => ({ text: t, options: { bold: true, color: K.blanco, fill: { color: K.noche } } });
-s.addTable([
-  [cab("Criterio (peso)"), cab("Zabbix"), cab("Prometheus + Grafana"), cab("Nagios")],
-  ["Exigido por el enunciado (30 %)", "5", "1", "1"],
-  ["Agente SO + servicios (20 %)", "5", "4", "3"],
-  ["Alertas por correo (15 %)", "5", "4", "4"],
-  ["Dashboards e históricos (15 %)", "4", "5", "2"],
-  ["Configuración por API (10 %)", "5", "4", "2"],
-  ["Monitoreo distribuido (10 %)", "5", "3", "2"],
-  [{ text: "Total", options: { bold: true } }, { text: "4,85", options: { bold: true, color: K.verde } }, "3,05", "2,15"],
-], { x: 0.6, y: 1.8, w: 6.9, colW: [3.0, 1.1, 1.7, 1.1], fontFace: BODY, fontSize: 14, color: K.tinta, align: "center", valign: "middle", rowH: 0.52, border: { type: "solid", pt: 0.5, color: "C9D3E0" } });
-tarjeta(s, 7.85, 1.8, 4.9, 2.25, "Agente sidecar", "Un Zabbix Agent 2 por servicio que comparte red y procesos (network_mode / pid: service:X). Sin tocar las imágenes oficiales.", K.verde);
-tarjeta(s, 7.85, 4.3, 4.9, 2.25, "Zabbix Proxy", "Hace los chequeos dentro de la red de servicios y envía todo al servidor por una sola conexión saliente (TCP 10051).", K.verde);
-s.addNotes("Explicar por qué se descartó publicar el puerto 10050 de cada agente: no permitía ICMP ni HTTP hacia las IP internas.");
+const procesos = [["1", "Filtro", "Restricciones del enunciado: eliminan, no puntúan"], ["2", "Criterios", "Cada uno con forma de medición y escala 1/3/5"],
+  ["3", "Puntaje", "Evidencia de la documentación y de la implementación"], ["4", "Sensibilidad", "¿Cambia la elección si cambian los pesos?"]];
+procesos.forEach((p, i) => {
+  const y = 1.8 + i * 1.2;
+  s.addShape(pres.shapes.OVAL, { x: 0.6, y, w: 0.7, h: 0.7, fill: { color: K.noche }, line: { color: K.noche } });
+  s.addText(p[0], { x: 0.6, y, w: 0.7, h: 0.7, align: "center", valign: "middle", fontFace: HEAD, fontSize: 20, bold: true, color: K.blanco, margin: 0, isTextBox: true });
+  s.addText(p[1], { x: 1.5, y: y - 0.05, w: 3.3, h: 0.4, fontFace: HEAD, fontSize: 17, bold: true, color: K.noche, margin: 0, isTextBox: true });
+  s.addText(p[2], { x: 1.5, y: y + 0.33, w: 3.4, h: 0.6, fontFace: BODY, fontSize: 13, color: K.tinta, margin: 0, valign: "top", isTextBox: true });
+});
+s.addTable(izq([
+  [cab("Herramienta: criterio (peso) — cómo se mide"), cab("Zabbix"), cab("Prom. + Grafana"), cab("Nagios")],
+  ["C1 Componentes a desplegar (25 %) — nº de piezas", "4", "2", "4"],
+  ["C2 Dashboards e históricos (20 %) — nativos/básicos/no", "4", "5", "1"],
+  ["C3 Monitoreo distribuido (20 %) — proxy/federación/directo", "5", "3", "2"],
+  ["C4 Configuración automatizable (20 %) — API/archivos/GUI", "5", "4", "3"],
+  ["C5 Alertas por correo (15 %) — con recuperación y plantillas", "5", "4", "4"],
+  [{ text: "Total ponderado", options: { bold: true } }, { text: "4,55", options: { bold: true, color: K.verde } }, "3,50", "2,80"],
+]), { x: 5.2, y: 1.8, w: 7.55, colW: [4.15, 1.0, 1.4, 1.0], fontFace: BODY, fontSize: 13, color: K.tinta, align: "center", valign: "middle", rowH: 0.56, border: { type: "solid", pt: 0.5, color: "C9D3E0" } });
+s.addText("El enunciado fija Zabbix: la matriz verifica que también es la mejor opción técnica", { x: 5.2, y: 5.95, w: 7.55, h: 0.5, fontFace: BODY, fontSize: 14, italic: true, color: K.gris, margin: 0, isTextBox: true });
+s.addNotes("«Exigido por el enunciado» no es un criterio sino un filtro: si fuera un criterio puntuable inflaría artificialmente a Zabbix. Cada criterio tiene escala con anclas; ver Tabla I del informe.");
+
+// 3b Conectividad -------------------------------------------------------------
+s = pres.addSlide({ masterName: "CONTENIDO" });
+titulo(s, "La decisión abierta: conectar las dos VM", "El servidor no ve la red Docker interna de la VM de servicios");
+s.addTable(izq([
+  [cab("Criterio (peso) — cómo se mide"), cab("A1 Puertos publicados"), cab("A2 Docker Swarm"), cab("A3 Zabbix Proxy")],
+  ["K1 Cobertura (35 %) — chequeos posibles de 4", "4", "5", "5"],
+  ["K2 Superficie (25 %) — puertos abiertos entre VM", "1", "3", "5"],
+  ["K3 Complejidad (20 %) — componentes nuevos", "5", "2", "4"],
+  ["K4 Tolerancia a cortes (20 %) — ¿guarda y reenvía?", "1", "1", "5"],
+  [{ text: "Total ponderado", options: { bold: true } }, "2,85", "3,10", { text: "4,80", options: { bold: true, color: K.verde } }],
+]), { x: 0.6, y: 1.8, w: 7.6, colW: [3.4, 1.4, 1.4, 1.4], fontFace: BODY, fontSize: 13, color: K.tinta, align: "center", valign: "middle", rowH: 0.62, border: { type: "solid", pt: 0.5, color: "C9D3E0" } });
+tarjeta(s, 8.5, 1.8, 4.25, 2.35, "Sensibilidad", lista(["Pesos iguales: Zabbix 4,6; Prometheus 3,6; Nagios 2,8", "Prometheus solo ganaría si los dashboards pesaran más del 61 %", "Con la simplicidad al 50 %, el proxy sigue ganando (4,50 vs 3,66)"]), K.azul);
+tarjeta(s, 8.5, 4.35, 4.25, 2.3, "Reflexión", "La matriz no previó que el agente sidecar pierde la red si su servicio se reinicia. Se mitigó con un vigilante y se añadiría el criterio «comportamiento ante reinicios».", K.ambar);
+s.addText("Agente: el sidecar es la única opción con IP propia por host, sin tocar las imágenes oficiales y con un proceso por contenedor", { x: 0.6, y: 5.75, w: 7.6, h: 0.8, fontFace: BODY, fontSize: 14, italic: true, color: K.gris, margin: 0, isTextBox: true });
+s.addNotes("A1 hace ping a la VM y no al contenedor y abre 8 puertos; A2 exige swarm init/join, red overlay y stack; A3 añade un solo contenedor y una conexión saliente TCP 10051, con buffer si el enlace cae.");
 
 // 4 Arquitectura --------------------------------------------------------------
 s = pres.addSlide({ masterName: "CONTENIDO" });
