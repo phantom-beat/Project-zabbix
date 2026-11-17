@@ -2,6 +2,8 @@
 
 **Servicios Telemáticos 2026 · Lista 3 — Monitoreo de infraestructura**
 
+**Integrantes:** José David Aguirre Salinas · Gabriel Armando Gil Grueso
+
 Plataforma de monitoreo con **Zabbix 6.4** (Server, Proxy, Agent 2, frontend web) sobre **PostgreSQL**, que vigila
 una red de 4 servicios (web, base de datos, DNS y FTP) en contenedores Docker. Mide disponibilidad, estado
 de servicios, CPU/RAM/disco, genera alertas y las envía por correo a **MailHog**.

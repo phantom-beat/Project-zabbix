@@ -135,7 +135,7 @@ const titulo = [
     alignment: AlignmentType.CENTER, spacing: { after: 160 },
   }),
   new Paragraph({
-    children: [new TextRun({ text: "José David Aguirre Salinas", font: F, size: PT(11) })],
+    children: [new TextRun({ text: "José David Aguirre Salinas y Gabriel Armando Gil Grueso", font: F, size: PT(11) })],
     alignment: AlignmentType.CENTER, spacing: { after: 0 },
   }),
   new Paragraph({
@@ -299,7 +299,7 @@ const secciones = [
 ];
 
 const doc = new Document({
-  creator: "José David Aguirre Salinas",
+  creator: "José David Aguirre Salinas, Gabriel Armando Gil Grueso",
   title: "Monitoreo de infraestructura con Zabbix - Proyecto 7",
   styles: { default: { document: { run: { font: F, size: PT(10) } } } },
   numbering: { config: [{ reference: "vinetas", levels: [{ level: 0, format: LevelFormat.BULLET, text: "•", alignment: AlignmentType.LEFT, style: { paragraph: { indent: { left: 240, hanging: 180 } } } }] }] },

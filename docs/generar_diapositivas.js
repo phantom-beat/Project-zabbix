@@ -14,7 +14,7 @@ const HEAD = "Cambria", BODY = "Calibri";
 
 const pres = new pptxgen();
 pres.layout = "LAYOUT_WIDE"; // 13.33 x 7.5
-pres.author = "José David Aguirre Salinas";
+pres.author = "José David Aguirre Salinas, Gabriel Armando Gil Grueso";
 pres.title = "Proyecto 7 - Monitoreo de infraestructura con Zabbix";
 pres.theme = { headFontFace: HEAD, bodyFontFace: BODY };
 
@@ -74,7 +74,7 @@ s.addShape(pres.shapes.OVAL, { x: 0.6, y: 1.55, w: 0.32, h: 0.32, fill: { color:
 s.addText("PROYECTO 7", { x: 1.05, y: 1.5, w: 6, h: 0.42, fontFace: BODY, fontSize: 16, bold: true, color: "8FA3BF", charSpacing: 4, margin: 0, isTextBox: true });
 s.addText("Monitoreo de infraestructura con Zabbix", { x: 0.6, y: 2.1, w: 11.5, h: 1.6, fontFace: HEAD, fontSize: 48, bold: true, color: K.blanco, margin: 0, isTextBox: true });
 s.addText("4 servicios en contenedores · 2 máquinas virtuales · alertas por correo · pruebas de carga", { x: 0.6, y: 3.75, w: 11.5, h: 0.5, fontFace: BODY, fontSize: 20, color: "CADCFC", margin: 0, isTextBox: true });
-s.addText([{ text: "José David Aguirre Salinas", options: { bold: true, breakLine: true } }, { text: "Servicios Telemáticos · Universidad Autónoma de Occidente · Noviembre 2026" }],
+s.addText([{ text: "José David Aguirre Salinas · Gabriel Armando Gil Grueso", options: { bold: true, breakLine: true } }, { text: "Servicios Telemáticos · Universidad Autónoma de Occidente · Noviembre 2026" }],
   { x: 0.6, y: 5.2, w: 11, h: 0.9, fontFace: BODY, fontSize: 16, color: K.blanco, margin: 0, isTextBox: true });
 s.addNotes("Presentar el proyecto: monitoreo de 4 servicios con Zabbix, desplegado en 2 VMs con Vagrant y Docker.");
 
