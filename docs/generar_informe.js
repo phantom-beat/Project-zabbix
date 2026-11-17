@@ -135,7 +135,7 @@ const titulo = [
     alignment: AlignmentType.CENTER, spacing: { after: 160 },
   }),
   new Paragraph({
-    children: [new TextRun({ text: "José David Aguirre Salinas y Gabriel Armando Gil Grueso", font: F, size: PT(11) })],
+    children: [new TextRun({ text: "José David Aguirre Salinas (2230633) y Gabriel Armando Gil Grueso (2230206)", font: F, size: PT(11) })],
     alignment: AlignmentType.CENTER, spacing: { after: 0 },
   }),
   new Paragraph({

@@ -2,7 +2,7 @@
 
 **Servicios Telemáticos 2026 · Lista 3 — Monitoreo de infraestructura**
 
-**Integrantes:** José David Aguirre Salinas · Gabriel Armando Gil Grueso
+**Integrantes:** José David Aguirre Salinas (2230633) · Gabriel Armando Gil Grueso (2230206)
 
 Plataforma de monitoreo con **Zabbix 6.4** (Server, Proxy, Agent 2, frontend web) sobre **PostgreSQL**, que vigila
 una red de 4 servicios (web, base de datos, DNS y FTP) en contenedores Docker. Mide disponibilidad, estado
